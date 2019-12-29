@@ -120,6 +120,7 @@ def is_logged_in(f):
 
 
 @app.route('/logout')
+@is_logged_in
 def logout():
     session.clear()
     flash('You are logged out', 'success')
@@ -129,7 +130,39 @@ def logout():
 @app.route('/dashboard')
 @is_logged_in
 def dashboard():
-    return render_template('dashboard.html')
+    cur = mysql.connection.cursor()
+    result = cur.execute("select * from articles")
+    articles = cur.fetchall()
+    if result > 0:
+        return render_template('dashboard.html', articles=articles)
+    else:
+        msg = 'No Articles Found!'
+        return render_template('dashboard.html', msg=msg)
+
+
+class ArticleForm(Form):
+    title = StringField('Title', [validators.Length(min=1, max=200)])
+    body = TextAreaField('Body', [validators.Length(min=30)])
+
+
+@app.route('/add_article', methods=['GET', 'POST'])
+@is_logged_in
+def add_article():
+    form = ArticleForm(request.form)
+    if request.method == "POST" and form.validate():
+        title = form.title.data
+        body = form.body.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("insert into articles(title, body, author) values(%s, %s, %s)", (title, body, session['username']))
+        mysql.connection.commit()
+        cur.close()
+
+        flash('Article created', 'success')
+
+        return redirect(url_for('dashboard'))
+
+    return render_template('add_article.html', form=form)
 
 
 if __name__ == "__main__":
